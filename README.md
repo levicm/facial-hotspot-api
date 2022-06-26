@@ -1,6 +1,6 @@
 # facial-hotspot-api
 ## Install
-```
+```shell
 git clone https://github.com/levicm/facial-hotspot-api.git
 cd facial-hotspot-api
 sudo apt update
