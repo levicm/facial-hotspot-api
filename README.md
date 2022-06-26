@@ -1,5 +1,9 @@
 # facial-hotspot-api
 ## Install
+To install the project, open a shell session and execute the commands:
+
+Obs.: tested on Ubuntu 20+.
+### Ubuntu 20+
 ```shell
 git clone https://github.com/levicm/facial-hotspot-api.git
 cd facial-hotspot-api
@@ -11,3 +15,7 @@ pip install wheel
 pip install -r requirements.txt
 ```
 ## Run
+
+```shell
+uvicorn app:app --debug
+```
