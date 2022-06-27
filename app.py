@@ -44,18 +44,18 @@ def get_db():
 def main():
     return RedirectResponse(url="/docs/")
 
-@app.post('/create_db')
-def create_db(db: Session = Depends(get_db)):
+@app.post('/db_create')
+def create_database(db: Session = Depends(get_db)):
     models.Base.metadata.create_all(bind=engine)
     return {'result': 'ok'}
 
-@app.post('/clear_db')
-def clear_db(db: Session = Depends(get_db)):
+@app.post('/db_clear')
+def clear_database(db: Session = Depends(get_db)):
     models.Base.metadata.clear()
     return {'result': 'ok'}
 
-@app.post('/drop_db')
-def drop_db(db: Session = Depends(get_db)):
+@app.post('/db_drop')
+def drop_database(db: Session = Depends(get_db)):
     models.Base.metadata.drop_all(bind=engine)
     return {'result': 'ok'}
 
@@ -153,6 +153,16 @@ def user_by_email(email: str, db: Session = Depends(get_db)):
     stmt = select(models.User).where(models.User.email.is_(email))
     model_user = db.scalar(stmt)
     if (model_user): 
+        return model_user
+    else:
+        raise HTTPException(status_code=404, detail='User not found!')
+
+@app.delete('/users/id/{user_id}', response_model=schemas.User)
+def user_delete(user_id: int, db: Session = Depends(get_db)):
+    model_user = get_user_by_id(user_id, db)
+    if (model_user): 
+        db.delete(model_user)
+        db.commit()
         return model_user
     else:
         raise HTTPException(status_code=404, detail='User not found!')
