@@ -6,6 +6,7 @@ from starlette.responses import RedirectResponse
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy import func
 
 from database import SessionLocal, engine
 import models, schemas, faces
@@ -61,7 +62,6 @@ def drop_db(db: Session = Depends(get_db)):
 @app.post('/users')
 def user_add(user: schemas.User, db: Session = Depends(get_db)):
     print('add_user')
-    print(user.id)
     error = ''
     if (len(user.photo) == 0):
         error = 'Foto não definida!'
@@ -80,11 +80,24 @@ def user_add(user: schemas.User, db: Session = Depends(get_db)):
         # raise HTTPException(status_code=404, detail=error)
 
 def add_user(user, encoding, db):
-    model_user = models.User(id = user.id, name = user.name, email = user.email, photo = user.photo);
+    if (not user.id or len(user.id) == 0):
+        user.id = get_next_id(db)
+    print(user.id)
+    model_user = models.User(id = user.id, name = user.name, email = user.email);
     model_user.encoding = faces.serialize(encoding)
+    print(model_user)
     db.add(model_user)
     db.commit()
     add_to_cache(model_user, encoding, db)
+
+def get_next_id(db):
+    maxid_row = db.query(func.max(models.User.id)).first()
+    print(maxid_row)
+    print(type(maxid_row))
+    if (len(maxid_row) > 0 and maxid_row[0]):
+        return maxid_row[0] + 1
+    else:
+        return 1
 
 async def create_image_file(user: schemas.User):
     print('create_image_file: ' + user.get_image_file_path())
@@ -109,9 +122,10 @@ def authenticate(user: schemas.User, db: Session = Depends(get_db)):
 
         index = faces.match_face(get_encoding_cache(db), encodings[0])
         if index > -1:
-            user = get_user_cache(db)[index]
+            user_id = get_user_cache(db)[index]
+            user = get_user_by_id(user_id, db)
             print(user.name)
-            return { 'result': 'ok', 'user': { 'name': user.name } }
+            return { 'result': 'ok', 'user': { 'id': user.id, 'name': user.name } }
         else:
             error = 'Usuário não encontrado!'
     return { 'result': 'error', 'message': error }
@@ -124,12 +138,15 @@ def user_list(db: Session = Depends(get_db)):
 
 @app.get('/users/id/{user_id}', response_model=schemas.User)
 def user_by_id(user_id: int, db: Session = Depends(get_db)):
-    stmt = select(models.User).where(models.User.id.is_(user_id))
-    model_user = db.scalar(stmt);
+    model_user = get_user_by_id(user_id, db)
     if (model_user): 
         return model_user
     else:
         raise HTTPException(status_code=404, detail='User not found!')
+
+def get_user_by_id(user_id, db: Session):
+    stmt = select(models.User).where(models.User.id.is_(user_id))
+    return db.scalar(stmt);    
 
 @app.get('/users/email/{email}', response_model=schemas.User)
 def user_by_email(email: str, db: Session = Depends(get_db)):
@@ -141,7 +158,7 @@ def user_by_email(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail='User not found!')
 
 def add_to_cache(user, encoding, db: Session):
-    get_user_cache(db).append(user)
+    get_user_cache(db).append(user.id)
     get_encoding_cache(db).append(encoding)
 
 def get_user_cache(db: Session):
@@ -159,5 +176,5 @@ def build_cache(db: Session):
     user_encoding_cache.clear()
     records = db.query(models.User).all()
     for user in records:
-        user_cache.append(user)
+        user_cache.append(user.id)
         user_encoding_cache.append(faces.desserialize(user.encoding))
