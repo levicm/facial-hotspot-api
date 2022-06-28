@@ -1,4 +1,5 @@
 import aiofiles
+import typing
 
 from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,8 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy import func
 
-from database import SessionLocal, engine
-import models, schemas, faces
+import database
+import models, schemas, faces, cache
 
 app = FastAPI()
 
@@ -29,54 +30,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-user_cache = [ ]
-user_encoding_cache = [ ]
-
 # Dependency
-def get_db():
-    try:
-        db = SessionLocal()
-        yield db
-    finally:
-        db.close()
 
 @app.get("/")
 def main():
     return RedirectResponse(url="/docs/")
 
-@app.post('/db_create')
-def create_database(db: Session = Depends(get_db)):
-    models.Base.metadata.create_all(bind=engine)
-    return {'result': 'ok'}
+@app.post('/db_create', response_model=schemas.Result)
+def create_database():
+    database.create_db()
+    return schemas.Result(result='ok')
 
-@app.post('/db_clear')
-def clear_database(db: Session = Depends(get_db)):
-    models.Base.metadata.clear()
-    return {'result': 'ok'}
+@app.post('/db_clear', response_model=schemas.Result)
+def clear_database():
+    database.clear_db()
+    return schemas.Result(result='ok')
 
-@app.post('/db_drop')
-def drop_database(db: Session = Depends(get_db)):
-    models.Base.metadata.drop_all(bind=engine)
-    return {'result': 'ok'}
+@app.post('/db_drop', response_model=schemas.Result)
+def drop_database():
+    database.drop_db()
+    return schemas.Result(result='ok')
 
-@app.post('/users')
-def user_add(user: schemas.User, db: Session = Depends(get_db)):
+@app.post('/users', response_model=schemas.Result)
+def user_add(puser: schemas.User, db: Session = Depends(database.get_db)):
     print('add_user')
     error = ''
-    if (len(user.photo) == 0):
+    if (len(puser.photo) == 0):
         error = 'Foto não definida!'
     else:
-        encodings = faces.extract_encodings(user.get_photo_image())
+        encodings = faces.extract_encodings(puser.get_photo_image())
         if (len(encodings) == 0):
             error = 'Nenhuma face encontrada na foto!'
         if (len(encodings) > 1):
             error = 'Mais de uma face encontrada na foto!'
 
     if (len(error) == 0):
-        add_user(user, encodings[0], db)
-        return {'result': 'ok'}
+        dbuser = add_user(puser, encodings[0], db)
+        return schemas.Result(result='ok', user=dbuser)
     else:
-        return {'result': 'error', 'message': error}
+        return schemas.Result(result='error', message=error)
         # raise HTTPException(status_code=404, detail=error)
 
 def add_user(user, encoding, db):
@@ -88,7 +80,8 @@ def add_user(user, encoding, db):
     print(model_user)
     db.add(model_user)
     db.commit()
-    add_to_cache(model_user, encoding, db)
+    cache.clear_cache()
+    return model_user
 
 def get_next_id(db):
     maxid_row = db.query(func.max(models.User.id)).first()
@@ -104,13 +97,13 @@ async def create_image_file(user: schemas.User):
     async with aiofiles.open(user.get_image_file_path(), 'wb') as out_file:
         await out_file.write(user.get_photo_image())
 
-@app.post('/authenticate')
-def authenticate(user: schemas.User, db: Session = Depends(get_db)):
+@app.post('/authenticate', response_model=schemas.Result)
+def authenticate(puser: schemas.User, db: Session = Depends(database.get_db)):
     error = ''
-    if (len(user.photo) == 0):
+    if (len(puser.photo) == 0):
         error = 'Foto não definida!'
     else:
-        encodings = faces.extract_encodings(user.get_photo_image())
+        encodings = faces.extract_encodings(puser.get_photo_image())
         if (len(encodings) == 0):
             error = 'Nenhuma face encontrada na foto!'
         if (len(encodings) > 1):
@@ -120,24 +113,24 @@ def authenticate(user: schemas.User, db: Session = Depends(get_db)):
         # with open('./images/autenticando.jpg', 'wb') as out_file:
         #     out_file.write(user.get_photo_image())
 
-        index = faces.match_face(get_encoding_cache(db), encodings[0])
+        index = faces.match_face(cache.get_encoding_list(db), encodings[0])
         if index > -1:
-            user_id = get_user_cache(db)[index]
-            user = get_user_by_id(user_id, db)
-            print(user.name)
-            return { 'result': 'ok', 'user': { 'id': user.id, 'name': user.name } }
+            user_id = cache.get_user_id(index, db)
+            dbuser = get_user_by_id(user_id, db)
+            print(dbuser.name)
+            return schemas.Result(result='ok', user=dbuser)
         else:
             error = 'Usuário não encontrado!'
-    return { 'result': 'error', 'message': error }
+    return schemas.Result(result='error', message=error)
     # raise HTTPException(status_code=404, detail='Usuário não encontrado!')
 
-@app.get('/users')
-def user_list(db: Session = Depends(get_db)):
+@app.get('/users', response_model=typing.List[schemas.User])
+def user_list(db: Session = Depends(database.get_db)):
     records = db.query(models.User).all()
     return records
 
 @app.get('/users/id/{user_id}', response_model=schemas.User)
-def user_by_id(user_id: int, db: Session = Depends(get_db)):
+def user_by_id(user_id: int, db: Session = Depends(database.get_db)):
     model_user = get_user_by_id(user_id, db)
     if (model_user): 
         return model_user
@@ -149,7 +142,7 @@ def get_user_by_id(user_id, db: Session):
     return db.scalar(stmt);    
 
 @app.get('/users/email/{email}', response_model=schemas.User)
-def user_by_email(email: str, db: Session = Depends(get_db)):
+def user_by_email(email: str, db: Session = Depends(database.get_db)):
     stmt = select(models.User).where(models.User.email.is_(email))
     model_user = db.scalar(stmt)
     if (model_user): 
@@ -158,33 +151,15 @@ def user_by_email(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail='User not found!')
 
 @app.delete('/users/id/{user_id}', response_model=schemas.User)
-def user_delete(user_id: int, db: Session = Depends(get_db)):
+def user_delete(user_id: int, db: Session = Depends(database.get_db)):
+    print('user_delete')
+    print(user_id)
     model_user = get_user_by_id(user_id, db)
     if (model_user): 
         db.delete(model_user)
         db.commit()
+        cache.clear_cache()
         return model_user
     else:
         raise HTTPException(status_code=404, detail='User not found!')
 
-def add_to_cache(user, encoding, db: Session):
-    get_user_cache(db).append(user.id)
-    get_encoding_cache(db).append(encoding)
-
-def get_user_cache(db: Session):
-    if (len(user_cache) == 0):
-        build_cache(db)
-    return user_cache
-
-def get_encoding_cache(db: Session):
-    if (len(user_encoding_cache) == 0):
-        build_cache(db)
-    return user_encoding_cache
-
-def build_cache(db: Session):
-    user_cache.clear()
-    user_encoding_cache.clear()
-    records = db.query(models.User).all()
-    for user in records:
-        user_cache.append(user.id)
-        user_encoding_cache.append(faces.desserialize(user.encoding))
