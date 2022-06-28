@@ -13,12 +13,6 @@ class User(BaseModel):
     class Config:
         orm_mode = True
 
-    def get_photo_image(self):
-        return base64.b64decode(self.photo.replace('data:image/jpeg;base64,', ''))
-
-    def get_image_file_path(self):
-        return './images/' + str(self.id) + ';' + self.name + '.jpg'
-
 class Result(BaseModel):
     result: str
     message: Optional[str]

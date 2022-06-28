@@ -17,9 +17,9 @@ def clear_db():
     Base.metadata.clear()
 
 def drop_db():
-    Base.metadata.drop_all()
+    Base.metadata.drop_all(bind=engine)
 
-def get_db():
+def get_session():
     try:
         db = SessionLocal()
         yield db

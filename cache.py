@@ -5,14 +5,14 @@ user_id_list = [ ]
 user_encoding_list = [ ]
 
 def build_cache(db: Session):
+    print('build_cache')
     user_id_list.clear()
     user_encoding_list.clear()
     records = db.query(models.User).all()
     for user in records:
         user_id_list.append(user.id)
         user_encoding_list.append(faces.desserialize(user.encoding))
-    print(user_id_list)
-    print(user_encoding_list)
+    print(len(user_encoding_list))
 
 def clear_cache():
     user_id_list.clear()
