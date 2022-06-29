@@ -80,32 +80,21 @@ def user_list(db: Session = Depends(database.get_session)):
 
 @app.get('/users/id/{user_id}', response_model=schemas.User)
 def user_by_id(user_id: int, db: Session = Depends(database.get_session)):
-    try:
-        user = services.get_user_by_id(user_id)
-        if not (user): 
-            raise services.AuthenticationError(detail='Usuário não encontrado!')
-        return user
-    except services.AuthenticationError as e:
-        return schemas.Result(result='error', message=str(e))
+    user = services.get_user_by_id(user_id)
+    if not (user): 
+        raise HTTPException(status_code=404, detail='Usuário não encontrado!')
+    return user
 
 @app.get('/users/email/{email}', response_model=schemas.User)
 def user_by_email(email: str, db: Session = Depends(database.get_session)):
-    try:
-        user = services.get_user_by_email(email)
-        if not (user): 
-            raise services.AuthenticationError(detail='Usuário não encontrado!')
-        return user
-    except services.AuthenticationError as e:
-        return schemas.Result(result='error', message=str(e))
+    user = services.get_user_by_email(email)
+    if not (user): 
+        raise HTTPException(status_code=404, detail='Usuário não encontrado!')
+    return user
 
-@app.delete('/users/id/{user_id}', response_model=schemas.User)
+@app.delete('/users/id/{user_id}', response_model=schemas.Result)
 def user_delete(user_id: int, db: Session = Depends(database.get_session)):
-    print('user_delete')
-    print(user_id)
-    try:
-        user = services.user_delete(user_id, db)
-        if not (user): 
-            raise services.AuthenticationError(detail='Usuário não encontrado!')
-        return user
-    except services.AuthenticationError as e:
-        return schemas.Result(result='error', message=str(e))
+    dbuser = services.user_delete(user_id, db)
+    if not (dbuser): 
+        raise HTTPException(status_code=404, detail='Usuário não encontrado!')
+    return schemas.Result(result='ok', user=dbuser)

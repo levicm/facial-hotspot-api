@@ -79,7 +79,7 @@ def authenticate(user: schemas.User, db: Session = getDbSession()):
 
     index = faces.match_face(cache.get_encoding_list(db), encodings[0])
     if index > -1:
-        user_id = cache.get_user_id(index, db)
+        user_id: int = cache.get_user_id(index, db)
         dbuser = get_user_by_id(user_id, db)
         print(dbuser.name)
         return dbuser 
@@ -87,12 +87,12 @@ def authenticate(user: schemas.User, db: Session = getDbSession()):
 def user_list(db: Session = getDbSession()):
     return db.query(models.User).all()
 
-def get_user_by_id(user_id, db: Session = getDbSession()):
-    stmt = select(models.User).where(models.User.id.is_(user_id))
+def get_user_by_id(user_id: int, db: Session = getDbSession()):
+    stmt = select(models.User).where(models.User.id == user_id)
     return db.scalar(stmt);    
 
 def get_user_by_email(email: str, db: Session = getDbSession()):
-    stmt = select(models.User).where(models.User.email.is_(email))
+    stmt = select(models.User).where(models.User.email == email)
     return db.scalar(stmt)
 
 def user_delete(user_id: int, db: Session = getDbSession()):
