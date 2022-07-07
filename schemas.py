@@ -9,6 +9,8 @@ class User(BaseModel):
     email: Optional[str] = None
     photo: Optional[str] = None
     encoding: Optional[str] = None
+    phone: Optional[str] = None
+    phone2: Optional[str] = None
     
     class Config:
         orm_mode = True

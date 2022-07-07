@@ -11,6 +11,8 @@ class User(Base):
     photo = Column(String)
     encoding = Column(String(2400))
     address = Column(String(100))
+    phone = Column(String)
+    phone2 = Column(String)
     birthday = Column(Date)
     created = Column(Date)
     updated = Column(Date)

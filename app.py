@@ -47,12 +47,26 @@ def drop_database():
 
 @app.post('/users', response_model=schemas.Result)
 def user_add(puser: schemas.User, db: Session = Depends(database.get_session)):
-    print('add_user')
+    print('user_add')
     try:
         if (not(puser.photo) or len(puser.photo) == 0):
             raise services.AuthenticationError('Foto não definida!')
 
         dbuser = services.add_user(puser, db)
+        # puser.photo = None
+        return schemas.Result(result='ok', user=dbuser)
+    except services.AuthenticationError as e:
+        return schemas.Result(result='error', message=str(e))
+        # raise HTTPException(status_code=404, detail=error)
+
+@app.put('/users', response_model=schemas.Result)
+def user_update(puser: schemas.User, db: Session = Depends(database.get_session)):
+    print('user_update')
+    try:
+        if not(puser.id):
+            raise services.AuthenticationError('Identificação requerida!')
+
+        dbuser = services.update_user(puser, db)
         # puser.photo = None
         return schemas.Result(result='ok', user=dbuser)
     except services.AuthenticationError as e:

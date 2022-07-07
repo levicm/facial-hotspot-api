@@ -53,7 +53,7 @@ def add_user(user: schemas.User, db: Session = getDbSession()):
     print(user)
 
     # Not persisting photo yet 
-    dbuser = models.User(id = user.id, name = user.name, email = user.email, encoding=user.encoding);
+    dbuser = models.User(id = user.id, name = user.name, email = user.email, encoding=user.encoding, phone=user.phone, phone2=user.phone2);
     db.add(dbuser)
     db.commit()
 
@@ -103,3 +103,30 @@ def user_delete(user_id: int, db: Session = getDbSession()):
         cache.clear_cache()
     return user
 
+def update_user(puser: schemas.User, db: Session = getDbSession()):
+    dbuser = get_user_by_id(puser.id, db)
+    if (dbuser): 
+        if puser.photo and len(puser.photo) > 0:
+            image = get_image_bytes(puser.photo)
+            encodings = faces.extract_encodings(image)
+            if (len(encodings) == 0):
+                raise AuthenticationError('Nenhuma face encontrada na foto!')
+            if (len(encodings) > 1):
+                raise AuthenticationError('Mais de uma face encontrada na foto!')
+            dbuser.encoding = faces.serialize(encodings[0])
+        if puser.name and len(puser.name) > 0:
+            dbuser.name = puser.name
+        if puser.email and len(puser.email) > 0:
+            dbuser.email = puser.email
+        if puser.phone and len(puser.phone) > 0:
+            dbuser.phone = puser.phone
+        if puser.phone2 and len(puser.phone2) > 0:
+            dbuser.phone2 = puser.phone2
+
+        print(dbuser)
+        db.flush()
+        db.commit()
+        cache.clear_cache()
+    else: 
+        raise AuthenticationError('Usuário não encontrado: ' + str(puser.id))
+    return dbuser
